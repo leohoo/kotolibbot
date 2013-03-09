@@ -1,9 +1,15 @@
 #!/usr/bin/perl
 
+use Getopt::Long;
 use Text::Iconv;
 use WWW::Mechanize;
 use LWP::Debug qw(+ trace);
-use Getopt::Long;
+use HTML::TableExtract;
+use utf8;
+use DBI;
+use String::Util 'trim';
+
+binmode STDOUT, ':utf8';
 
 GetOptions("card=s" => \$card, "passwd=s" => \$passwd);
 die "card & passwd required." unless $card && $passwd;
@@ -35,7 +41,17 @@ if ( ! $mech->success ) {
 }
 
 $mech->follow_link(url_regex=>qr/Phase=/, n=>0);
-print $mech->text(), "\n";
 
+$te = HTML::TableExtract->new;
+$te->parse($mech->content);
 
+@table = $te->tables;
 
+$t = $table[0];
+$dbh = DBI->connect('DBI:mysql:library', 'root', '');
+
+foreach $row ($te->rows){
+  print trim(join(",", @$row)), "\n";
+  $cmd = sprintf("call addrecordwithcardno('%s', '%s', '%s', '%s');", $card, $row->[1], trim($row->[2]), $row->[4]);
+  print $cmd, "\n";
+} 
